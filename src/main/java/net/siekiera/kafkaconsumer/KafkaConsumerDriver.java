@@ -6,29 +6,27 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * Created by W. Siekiera on 22.01.2018
  */
 @Component
 public class KafkaConsumerDriver implements CommandLineRunner {
+    private int numConsumers = 1;
+    private String groupId = "consumer-test-1";
+    private List<String> topics = Arrays.asList("tickets");
+    private ExecutorService executor = Executors.newFixedThreadPool(numConsumers);
+    private List<Future> results = new ArrayList<>();
+    private final List<ConsumerLoop> consumers = new ArrayList<>();
+
     @Override
     public void run(String... strings) throws Exception {
-        int numConsumers = 1;
-        String groupId = "consumer-test-1";
-        List<String> topics = Arrays.asList("tickets");
-        ExecutorService executor = Executors.newFixedThreadPool(numConsumers);
-
-        final List<ConsumerLoop> consumers = new ArrayList<>();
         for (int i = 0; i < numConsumers; i++) {
             ConsumerLoop consumer = new ConsumerLoop(i, groupId, topics);
             consumers.add(consumer);
-            executor.submit(consumer);
+            results.add(executor.submit(consumer));
         }
-
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
@@ -43,5 +41,6 @@ public class KafkaConsumerDriver implements CommandLineRunner {
                 }
             }
         });
+        System.out.println("run() ended.");
     }
 }

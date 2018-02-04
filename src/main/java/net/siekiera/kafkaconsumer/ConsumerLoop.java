@@ -1,9 +1,6 @@
 package net.siekiera.kafkaconsumer;
 
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -36,28 +33,40 @@ public class ConsumerLoop implements Runnable {
 
     @Override
     public void run() {
+
+
         try {
             consumer.subscribe(topics);
 
             while (true) {
+
                 ConsumerRecords<String, String> records = consumer.poll(Long.MAX_VALUE);
+                long pollTime = System.nanoTime();
+                System.out.println("Pobrałem " + records.count() + " rekordów.");
+                System.out.println("Zaczynam procesowanie ...");
                 for (ConsumerRecord<String, String> record : records) {
-                    Map<String, Object> data = new HashMap<>();
-                    data.put("partition", record.partition());
-                    data.put("offset", record.offset());
-                    data.put("value", record.value());
-                    System.out.println(this.id + ": " + data);
-                    Map<TopicPartition, OffsetAndMetadata> map = new HashMap<>();
-                    map.put(new TopicPartition(record.topic(), record.partition()), new OffsetAndMetadata(record.offset()+1));
-                    Thread.sleep(500);
-                    consumer.commitSync(map);
+                    long singleRecordProcessingStartTime = System.nanoTime();
+                    Map<TopicPartition, OffsetAndMetadata> topicPartitionOffsetAndMetadataHashMap = new HashMap<>();
+                    topicPartitionOffsetAndMetadataHashMap.put(new TopicPartition(record.topic(), record.partition()), new OffsetAndMetadata(record.offset() + 1));
+                    try {
+                        consumer.commitSync(topicPartitionOffsetAndMetadataHashMap);
+                    } catch (Exception e) {
+                        Thread.sleep(10000);
+                        //System.out.println(e.getMessage());
+                    }
+                    long finishTime = System.nanoTime();
+                    long duration = finishTime - singleRecordProcessingStartTime;
+                    long timeSinceLastPoll = finishTime - pollTime;
+                    System.out.println("Offset=" + record.offset() + " single processing=" + (duration / 1000000) + " time since last poll=" + (timeSinceLastPoll / 1000000));
+
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Exception occured: " + e.getMessage());
         } finally {
             consumer.close();
         }
+        System.out.println("It's all fucked up.");
     }
 
     public void shutdown() {
